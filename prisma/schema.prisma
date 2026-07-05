@@ -1,0 +1,466 @@
+// Prisma schema — covers all entities listed in requirements §9
+// plus operational additions (SavedSearch, Alert, AuditLog, DedupeFlag).
+//
+// SQLite is used for local dev (zero setup). Postgres in prod (Neon).
+// Enums are modeled as String columns with TypeScript unions in src/types/enums.ts;
+// SQLite doesn't support Prisma enum types. Runtime validation happens via zod
+// at the boundary (Server Actions / API routes).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// =========================================================================
+// AUTH & RBAC
+// =========================================================================
+// Role: BUYER | EXECUTIVE | MANAGER | SUPER_ADMIN
+
+model User {
+  id              String   @id @default(cuid())
+  email           String   @unique
+  phone           String?  @unique
+  name            String?
+  passwordHash    String
+  role            String   @default("BUYER")
+  phoneVerified   Boolean  @default(false)
+  emailVerified   Boolean  @default(false)
+  marketingOptIn  Boolean  @default(false)
+  lastLoginAt     DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  subscriptions   Subscription[]
+  payments        Payment[]
+  savedSearches   SavedSearch[]
+  alerts          Alert[]
+  workflowTasks   WorkflowTask[] @relation("AssignedTasks")
+  communications  CommunicationLog[]
+  serviceOrders   ServiceOrder[]
+  auditEntries    AuditLog[]
+  viewedListings  ListingView[]
+  passwordResets  PasswordResetToken[]
+  emailVerifications EmailVerificationToken[]
+}
+
+model PasswordResetToken {
+  id         String   @id @default(cuid())
+  userId     String
+  tokenHash  String   @unique
+  expiresAt  DateTime
+  usedAt     DateTime?
+  createdAt  DateTime @default(now())
+
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+}
+
+model EmailVerificationToken {
+  id         String   @id @default(cuid())
+  userId     String
+  tokenHash  String   @unique
+  expiresAt  DateTime
+  usedAt     DateTime?
+  createdAt  DateTime @default(now())
+
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+}
+
+// =========================================================================
+// SOURCES & INGESTION (§3, §4.1, §8.2)
+// =========================================================================
+// SourceType: OFFICIAL_PLATFORM | AUCTION_ENGINE | BANK_WEBSITE | NEWSPAPER | AGGREGATOR | MANUAL
+
+model Source {
+  id             String   @id @default(cuid())
+  name           String
+  type           String
+  baseUrl        String?
+  crawlSchedule  String?
+  parserTemplate String?
+  enabled        Boolean  @default(true)
+  createdAt      DateTime @default(now())
+
+  notices        SourceNotice[]
+}
+
+model SourceNotice {
+  id              String   @id @default(cuid())
+  sourceId        String
+  url             String?
+  capturedAt      DateTime @default(now())
+  rawText         String?
+  rawHtmlRef      String?
+  parseConfidence Float?
+  parsedJson      String?
+
+  source          Source        @relation(fields: [sourceId], references: [id])
+  listing         Listing?
+  workflowTask    WorkflowTask?
+
+  @@index([sourceId, capturedAt])
+}
+
+// =========================================================================
+// LISTINGS (§4.2)
+// =========================================================================
+// PropertyType: RESIDENTIAL | COMMERCIAL | INDUSTRIAL | LAND | AGRICULTURAL | VEHICLE | OTHER
+// PossessionType: PHYSICAL | SYMBOLIC | UNKNOWN
+// AuctionType: E_AUCTION | PHYSICAL | HYBRID
+// ListingStatus: UPCOMING | LIVE | COMPLETED | SOLD | WITHDRAWN | RE_AUCTION
+// RiskLabel: LOW | MEDIUM | HIGH
+
+model Listing {
+  id                String         @id @default(cuid())
+  sourceNoticeId    String?        @unique
+  sourceNotice      SourceNotice?  @relation(fields: [sourceNoticeId], references: [id])
+
+  title             String
+  propertyType      String
+  auctionType       String         @default("E_AUCTION")
+  possession        String         @default("UNKNOWN")
+  status            String         @default("UPCOMING")
+
+  lenderName        String
+  branch            String?
+  authorizedOfficer String?
+  borrowerName      String?
+
+  addressLine       String?
+  locality          String?
+  city              String
+  state             String
+  pincode           String?
+  latitude          Float?
+  longitude         Float?
+  addressText       String?
+
+  reservePrice      Int
+  emd               Int?
+  bidIncrement      Int?
+
+  riskScore         Int?
+  riskLabel         String?
+  riskFactors       String?
+  documentCompleteness Float?
+  hasEncumbrance    Boolean        @default(false)
+  hasLitigation     Boolean        @default(false)
+  reauctionCount    Int            @default(0)
+  sourceTrustTier   String         @default("B")
+
+  isPremium         Boolean        @default(false)
+  premiumUntil      DateTime?
+  loanAvailable     Boolean        @default(false)
+
+  published         Boolean        @default(false)
+  publishedAt       DateTime?
+  approvedById      String?
+
+  parentListingId   String?
+  parentListing     Listing?       @relation("ReAuction", fields: [parentListingId], references: [id])
+  reauctions        Listing[]      @relation("ReAuction")
+
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  events            AuctionEvent[]
+  documents         Document[]
+  workflowTask      WorkflowTask?
+  views             ListingView[]
+  communications    CommunicationLog[]
+  serviceOrders     ServiceOrder[]
+  dedupeFlagsA      DedupeFlag[]   @relation("FlagListingA")
+  dedupeFlagsB      DedupeFlag[]   @relation("FlagListingB")
+
+  @@index([status, published, publishedAt])
+  @@index([state, city])
+  @@index([propertyType])
+  @@index([lenderName])
+}
+
+model AuctionEvent {
+  id              String   @id @default(cuid())
+  listingId       String
+  auctionDateTime DateTime
+  inspectionStart DateTime?
+  inspectionEnd   DateTime?
+  emdLastDate     DateTime?
+  venueOrPlatform String?
+  contactPhone    String?
+  contactEmail    String?
+
+  listing         Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  @@index([listingId, auctionDateTime])
+}
+
+// DocType: SALE_NOTICE | TERMS | VALUATION | ENCUMBRANCE | PHOTO | MISC
+// DocVisibility: PUBLIC | PARTIAL | SUBSCRIBED
+
+model Document {
+  id          String   @id @default(cuid())
+  listingId   String
+  docType     String
+  visibility  String   @default("SUBSCRIBED")
+  storageKey  String
+  fileName    String
+  mimeType    String
+  sizeBytes   Int
+  uploadedAt  DateTime @default(now())
+
+  listing     Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  @@index([listingId])
+}
+
+// =========================================================================
+// WORKFLOW (§4.1.1)
+// =========================================================================
+// WorkflowState: DISCOVERED | DEDUPE_FLAGGED | ASSIGNED | IN_PROCESSING
+//                | SUBMITTED_FOR_REVIEW | APPROVED_PUBLISHED | REJECTED | ARCHIVED
+
+model WorkflowTask {
+  id              String        @id @default(cuid())
+  sourceNoticeId  String?       @unique
+  sourceNotice    SourceNotice? @relation(fields: [sourceNoticeId], references: [id])
+  listingId       String?       @unique
+  listing         Listing?      @relation(fields: [listingId], references: [id])
+
+  state           String        @default("DISCOVERED")
+  assigneeId      String?
+  assignee        User?         @relation("AssignedTasks", fields: [assigneeId], references: [id])
+
+  priority        Int           @default(0)
+  dueAt           DateTime?
+  slaHours        Int           @default(24)
+
+  notes           String?
+  history         String?
+
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@index([state, assigneeId])
+}
+
+model DedupeFlag {
+  id          String   @id @default(cuid())
+  listingAId  String
+  listingBId  String
+  similarity  Float
+  reason      String?
+  resolved    Boolean  @default(false)
+  resolution  String?
+  resolvedAt  DateTime?
+  createdAt   DateTime @default(now())
+
+  listingA    Listing  @relation("FlagListingA", fields: [listingAId], references: [id], onDelete: Cascade)
+  listingB    Listing  @relation("FlagListingB", fields: [listingBId], references: [id], onDelete: Cascade)
+
+  @@unique([listingAId, listingBId])
+  @@index([resolved])
+}
+
+// =========================================================================
+// SUBSCRIPTIONS & PAYMENTS (§4.4, §8.4)
+// =========================================================================
+
+model SubscriptionPlan {
+  id            String   @id @default(cuid())
+  code          String   @unique
+  name          String
+  priceInPaise  Int
+  durationDays  Int
+  entitlements  String   // json
+  enabled       Boolean  @default(true)
+  createdAt     DateTime @default(now())
+
+  subscriptions Subscription[]
+}
+
+// SubStatus: ACTIVE | EXPIRED | CANCELLED | PENDING
+
+model Subscription {
+  id          String          @id @default(cuid())
+  userId      String
+  planId      String
+  status      String          @default("PENDING")
+  startedAt   DateTime?
+  endsAt      DateTime?
+  autoRenew   Boolean         @default(false)
+  createdAt   DateTime        @default(now())
+
+  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan        SubscriptionPlan @relation(fields: [planId], references: [id])
+  payments    Payment[]
+
+  @@index([userId, status])
+}
+
+// PaymentKind: SUBSCRIPTION | REPORT | SERVICE | OTHER
+// PaymentStatus: CREATED | PAID | FAILED | REFUNDED
+
+model Payment {
+  id             String   @id @default(cuid())
+  userId         String
+  kind           String
+  amountInPaise  Int
+  currency       String   @default("INR")
+  status         String   @default("CREATED")
+  gatewayRef     String?  @unique
+  subscriptionId String?
+  webhookLog     String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user           User           @relation(fields: [userId], references: [id])
+  subscription   Subscription?  @relation(fields: [subscriptionId], references: [id])
+
+  @@index([userId, createdAt])
+}
+
+// =========================================================================
+// CRM-LITE & PARTNERS (§4.3.1, §7)
+// =========================================================================
+// CommChannel: CALL | EMAIL | WHATSAPP | CHAT | NOTE
+
+model CommunicationLog {
+  id          String   @id @default(cuid())
+  userId      String
+  listingId   String?
+  channel     String
+  summary     String
+  followUpAt  DateTime?
+  createdById String?
+  createdAt   DateTime @default(now())
+
+  user        User     @relation(fields: [userId], references: [id])
+  listing     Listing? @relation(fields: [listingId], references: [id])
+
+  @@index([userId, createdAt])
+}
+
+// PartnerCategory: LEGAL | VALUER | INSPECTION | LOAN | PROPERTY_MGMT | INSURANCE | OTHER
+
+model Partner {
+  id           String   @id @default(cuid())
+  name         String
+  category     String
+  region       String?
+  contactPhone String?
+  contactEmail String?
+  pricing      String?
+  payoutTerms  String?
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+
+  serviceOrders ServiceOrder[]
+}
+
+// ServiceStatus: REQUESTED | QUOTED | IN_PROGRESS | DELIVERED | CLOSED | CANCELLED
+
+model ServiceOrder {
+  id              String   @id @default(cuid())
+  userId          String
+  listingId       String?
+  partnerId       String?
+  serviceType     String
+  status          String   @default("REQUESTED")
+  preferredTime   DateTime?
+  deliverablesRef String?
+  outcome         String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user            User     @relation(fields: [userId], references: [id])
+  listing         Listing? @relation(fields: [listingId], references: [id])
+  partner         Partner? @relation(fields: [partnerId], references: [id])
+
+  @@index([userId, createdAt])
+  @@index([status])
+}
+
+// =========================================================================
+// ALERTS & SAVED SEARCHES (§5.6, §8.3)
+// =========================================================================
+
+model SavedSearch {
+  id          String   @id @default(cuid())
+  userId      String
+  name        String
+  filterJson  String
+  channels    String
+  frequency   String   @default("INSTANT")
+  lastRunAt   DateTime?
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  alerts      Alert[]
+
+  @@index([userId, active])
+}
+
+// AlertStatus: PENDING | SENT | FAILED | BOUNCED
+
+model Alert {
+  id             String   @id @default(cuid())
+  userId         String
+  savedSearchId  String?
+  listingId      String?
+  channel        String
+  status         String   @default("PENDING")
+  payload        String?
+  sentAt         DateTime?
+  error          String?
+  createdAt      DateTime @default(now())
+
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  savedSearch    SavedSearch? @relation(fields: [savedSearchId], references: [id], onDelete: SetNull)
+
+  @@index([userId, status])
+}
+
+// =========================================================================
+// AUDIT (§8.5)
+// =========================================================================
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String?
+  action     String
+  target     String
+  before     String?
+  after      String?
+  ip         String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  actor      User?    @relation(fields: [actorId], references: [id])
+
+  @@index([actorId, createdAt])
+  @@index([action])
+}
+
+// =========================================================================
+// ANALYTICS
+// =========================================================================
+
+model ListingView {
+  id         String   @id @default(cuid())
+  listingId  String
+  userId     String?
+  viewedAt   DateTime @default(now())
+
+  listing    Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  user       User?    @relation(fields: [userId], references: [id])
+
+  @@index([listingId, viewedAt])
+}
