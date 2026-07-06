@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { getSession } from '@/lib/auth';
 import { isAdminRole } from '@/lib/rbac';
 import { Button } from './ui';
+import { MainNav } from './main-nav';
 import { logoutAction } from '@/app/(auth)/actions';
 
 export async function SiteHeader() {
@@ -9,27 +10,26 @@ export async function SiteHeader() {
   const admin = session && isAdminRole(session.role);
 
   return (
-    <header className="border-b border-gray-200 bg-white">
-      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4">
-        <Link href="/" className="text-xl font-bold text-brand-700">
-          Hanshitha Auctions
+    <header className="sticky top-0 z-50 border-b border-line bg-white/90 backdrop-blur">
+      <div className="mx-auto flex h-16 max-w-[1200px] items-center gap-5 px-[22px]">
+        <Link href="/" className="flex items-center gap-[9px]">
+          <span className="flex h-[30px] w-[30px] items-center justify-center rounded-lg bg-[linear-gradient(150deg,#12507e,#0f3350)] text-[15px] font-extrabold text-white">
+            H
+          </span>
+          <span className="text-lg font-extrabold tracking-[-0.01em] text-ink">Hanshitha Auctions</span>
         </Link>
-        <nav className="hidden items-center gap-6 text-sm font-medium text-gray-700 md:flex">
-          <Link href="/listings" className="hover:text-brand-600">Browse</Link>
-          <Link href="/calendar" className="hover:text-brand-600">Calendar</Link>
-          <Link href="/services" className="hover:text-brand-600">Services</Link>
-          <Link href="/plans" className="hover:text-brand-600">Plans</Link>
-          <Link href="/about" className="hover:text-brand-600">About</Link>
-        </nav>
-        <div className="flex items-center gap-2">
+
+        <MainNav />
+
+        <div className="ml-auto flex items-center gap-[10px]">
           {admin && (
-            <Link href="/admin" className="text-sm font-medium text-brand-700 hover:underline">
+            <Link href="/admin" className="text-sm font-semibold text-navy hover:underline">
               Admin
             </Link>
           )}
           {session ? (
             <>
-              <Link href="/account" className="text-sm text-gray-700 hover:text-brand-700">
+              <Link href="/account" className="hidden text-sm text-ink hover:text-trust sm:inline">
                 {session.email}
               </Link>
               <form action={logoutAction}>
@@ -38,8 +38,11 @@ export async function SiteHeader() {
             </>
           ) : (
             <>
-              <Link href="/login">
-                <Button variant="secondary" size="sm">Login</Button>
+              <Link
+                href="/login"
+                className="text-sm font-semibold text-ink transition-colors hover:text-trust"
+              >
+                Log in
               </Link>
               <Link href="/signup">
                 <Button size="sm">Sign up</Button>

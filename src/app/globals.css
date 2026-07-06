@@ -2,4 +2,25 @@
 @tailwind components;
 @tailwind utilities;
 
-html, body { background: #fafafb; color: #111827; }
+html,
+body {
+  background: #f2efe8; /* canvas */
+  color: #12212e; /* ink */
+}
+
+/* Let full-bleed sections (w-screen breakout) clip without a horizontal
+   scrollbar. `clip` (not `hidden`) avoids creating a scroll container, so
+   position:sticky on the header keeps working. */
+body {
+  overflow-x: clip;
+}
+
+@layer base {
+  body {
+    @apply font-sans antialiased;
+  }
+  /* Figures & metadata — prices, EMD, dates, IDs — use the mono face. */
+  .font-figures {
+    @apply font-mono tabular-nums;
+  }
+}
