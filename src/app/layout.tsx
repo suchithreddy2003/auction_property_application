@@ -1,6 +1,23 @@
 import './globals.css';
 import type { Metadata } from 'next';
+import { Hanken_Grotesk, IBM_Plex_Mono } from 'next/font/google';
 import { SiteHeader } from '@/components/header';
+import { SiteFooter } from '@/components/footer';
+
+// Interface & headings.
+const hanken = Hanken_Grotesk({
+  subsets: ['latin'],
+  variable: '--font-hanken',
+  display: 'swap',
+});
+
+// Figures & metadata — prices, EMD, dates, IDs.
+const plexMono = IBM_Plex_Mono({
+  subsets: ['latin'],
+  weight: ['400', '500', '600'],
+  variable: '--font-plex-mono',
+  display: 'swap',
+});
 
 export const metadata: Metadata = {
   title: 'Hanshitha Auctions — auction properties, decoded',
@@ -10,16 +27,11 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" className={`${hanken.variable} ${plexMono.variable}`}>
       <body>
         <SiteHeader />
         <main className="mx-auto min-h-screen max-w-7xl px-4 py-6">{children}</main>
-        <footer className="border-t border-gray-200 bg-white">
-          <div className="mx-auto max-w-7xl px-4 py-6 text-sm text-gray-500">
-            © Hanshitha Management Services. Information platform; not legal or
-            investment advice. Subject to lender/tribunal processes.
-          </div>
-        </footer>
+        <SiteFooter />
       </body>
     </html>
   );
