@@ -59,7 +59,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: SP 
   // Build listing filter shared by the grid and the upcoming list.
   const listingWhere: Prisma.ListingWhereInput = { published: true };
   if (searchParams.state) listingWhere.state = searchParams.state;
-  if (searchParams.city) listingWhere.city = { contains: searchParams.city };
+  if (searchParams.city) listingWhere.city = { contains: searchParams.city, mode: 'insensitive' };
   if (searchParams.type) listingWhere.propertyType = searchParams.type;
   if (searchParams.risk) listingWhere.riskLabel = searchParams.risk;
   const bucket = searchParams.price ? PRICE_BUCKETS[searchParams.price] : undefined;

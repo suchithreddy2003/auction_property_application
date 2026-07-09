@@ -29,7 +29,7 @@ async function handle(req: Request) {
       publishedAt: { gt: since },
     };
     if (filter.state) where.state = filter.state;
-    if (filter.city) where.city = { contains: filter.city };
+    if (filter.city) where.city = { contains: filter.city, mode: 'insensitive' };
     if (filter.propertyType) where.propertyType = filter.propertyType;
     if (filter.minPrice || filter.maxPrice) {
       where.reservePrice = {};

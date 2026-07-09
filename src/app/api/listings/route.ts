@@ -25,13 +25,13 @@ export async function GET(req: Request) {
   const where: Prisma.ListingWhereInput = { published: true };
   if (q) {
     where.OR = [
-      { title: { contains: q } },
-      { lenderName: { contains: q } },
-      { addressText: { contains: q } },
+      { title: { contains: q, mode: 'insensitive' } },
+      { lenderName: { contains: q, mode: 'insensitive' } },
+      { addressText: { contains: q, mode: 'insensitive' } },
     ];
   }
   if (state) where.state = state;
-  if (city) where.city = { contains: city };
+  if (city) where.city = { contains: city, mode: 'insensitive' };
   if (type) where.propertyType = type;
   if (status) where.status = status;
   if (premium) where.isPremium = true;

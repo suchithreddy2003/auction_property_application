@@ -1,17 +1,17 @@
 // Prisma schema — covers all entities listed in requirements §9
 // plus operational additions (SavedSearch, Alert, AuditLog, DedupeFlag).
 //
-// SQLite is used for local dev (zero setup). Postgres in prod (Neon).
-// Enums are modeled as String columns with TypeScript unions in src/types/enums.ts;
-// SQLite doesn't support Prisma enum types. Runtime validation happens via zod
-// at the boundary (Server Actions / API routes).
+// PostgreSQL (Neon) for both local dev and production.
+// Enums are modeled as String columns with TypeScript unions in src/types/enums.ts
+// (validated via zod at the boundary) rather than native Prisma enums, to keep the
+// app code provider-agnostic and migrations simple.
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
