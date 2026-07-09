@@ -16,8 +16,8 @@ export default async function AdminAuditPage({ searchParams }: { searchParams: {
   if (limited) {
     where.createdAt = { gte: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000) };
   }
-  if (searchParams.action) where.action = { contains: searchParams.action };
-  if (searchParams.actor) where.actor = { email: { contains: searchParams.actor } };
+  if (searchParams.action) where.action = { contains: searchParams.action, mode: 'insensitive' };
+  if (searchParams.actor) where.actor = { email: { contains: searchParams.actor, mode: 'insensitive' } };
 
   const rows = await prisma.auditLog.findMany({
     where,

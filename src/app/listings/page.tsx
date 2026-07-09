@@ -40,13 +40,13 @@ export default async function ListingsPage({ searchParams }: { searchParams: Sea
   const maxPrice = toInt(searchParams.maxPrice);
   if (searchParams.q) {
     where.OR = [
-      { title: { contains: searchParams.q } },
-      { lenderName: { contains: searchParams.q } },
-      { addressText: { contains: searchParams.q } },
+      { title: { contains: searchParams.q, mode: 'insensitive' } },
+      { lenderName: { contains: searchParams.q, mode: 'insensitive' } },
+      { addressText: { contains: searchParams.q, mode: 'insensitive' } },
     ];
   }
   if (searchParams.state) where.state = searchParams.state;
-  if (searchParams.city) where.city = { contains: searchParams.city };
+  if (searchParams.city) where.city = { contains: searchParams.city, mode: 'insensitive' };
   if (searchParams.type) where.propertyType = searchParams.type;
   if (searchParams.status) where.status = searchParams.status;
   if (minPrice != null || maxPrice != null) {

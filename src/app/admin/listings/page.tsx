@@ -6,9 +6,9 @@ export default async function AdminListingsPage({ searchParams }: { searchParams
   const where: any = {};
   if (searchParams.q) {
     where.OR = [
-      { title: { contains: searchParams.q } },
-      { lenderName: { contains: searchParams.q } },
-      { city: { contains: searchParams.q } },
+      { title: { contains: searchParams.q, mode: 'insensitive' } },
+      { lenderName: { contains: searchParams.q, mode: 'insensitive' } },
+      { city: { contains: searchParams.q, mode: 'insensitive' } },
     ];
   }
   if (searchParams.published === '1') where.published = true;

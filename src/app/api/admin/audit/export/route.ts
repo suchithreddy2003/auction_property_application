@@ -13,8 +13,8 @@ export async function GET(req: Request) {
   const where: any = {};
   const action = url.searchParams.get('action');
   const actor = url.searchParams.get('actor');
-  if (action) where.action = { contains: action };
-  if (actor) where.actor = { email: { contains: actor } };
+  if (action) where.action = { contains: action, mode: 'insensitive' };
+  if (actor) where.actor = { email: { contains: actor, mode: 'insensitive' } };
 
   const rows = await prisma.auditLog.findMany({
     where,
